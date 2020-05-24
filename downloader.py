@@ -12,7 +12,6 @@ class Downloader(object):
 	referer_url = "https://www.pixiv.net/member_illust.php?mode=medium&illust_id={pid}"
 	img_info_url = "https://www.pixiv.net/ajax/illust/{pid}"
 
-
 	def __init__(self, save_path, pixiv_header, max_threads=8, timeout=180, max_retry=5, new_dir=False):
 		self.save_path = save_path
 		self.max_threads = max_threads
@@ -24,6 +23,8 @@ class Downloader(object):
 		self.data_queue = queue.Queue()
 		self.gif_downloader = GIFDownloader(pixiv_header, save_path)
 
+		self._complete = queue.Queue()
+		self._failure = queue.Queue()
 		self.complete = []
 		self.failure = []
 		self.data_size = -1
@@ -55,9 +56,14 @@ class Downloader(object):
 				th.join()
 			self.th_pool.clear()
 
-		if len(self.failure) > 0:
-			for pid in self.failure:
-				self.write_log("download fail: %d" % pid)
+		while not self._failure.empty():
+			pid = self._failure.get()
+			self.write_log("download fail: %d" % pid)
+			self.failure.append(pid)
+
+		while not self._complete.empty():
+			pid = self._complete.get()
+			self.complete.append(pid)
 
 	def download_thread(self):
 		while True:
@@ -74,11 +80,6 @@ class Downloader(object):
 		else:
 			dir_path = self.save_path
 
-		if pid == 81701048:
-			x = 1
-		else:
-			return
-
 		if self.gif_downloader.isGIF(pid):
 			self.gif_downloader.download(pid)
 		else:
@@ -94,7 +95,7 @@ class Downloader(object):
 					self.data_queue.put((pid, retry + 1))
 				else:
 					print("下载%d失败" % pid)
-					self.failure.append(pid)
+					self._failure.put(pid)
 				return
 
 			replace_template = "_p{page}"
@@ -114,7 +115,7 @@ class Downloader(object):
 						self.data_queue.put((pid, retry + 1))
 					else:
 						print("下载%d失败" % pid)
-						self.failure.append(pid)
+						self._failure.put(pid)
 					return
 
 				image_format = img_url.split(".")[-1]
@@ -124,5 +125,5 @@ class Downloader(object):
 					fp.write(img_res.content)
 
 				page += 1
-		self.complete.append(pid)
-		print(pid, "下载完成。当前进度：", len(self.complete), "/", self.data_size)
+		self._complete.put(pid)
+		print(pid, "下载完成。当前进度：", len(self._complete), "/", self.data_size)

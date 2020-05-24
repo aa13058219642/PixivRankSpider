@@ -10,12 +10,34 @@ class PixivRankSpider:
 	def __init__(self, config, args):
 		self.args = args
 		self.config = config
-		self.pixiv = Pixiv(args.account, args.password)
 		self.save_path = os.path.join(args.save_path, "R18" if args.r18 else "General")
 		self.filter_func = None
 
+		self.max_retry = self.config.get("max_retry", 5)
+		self.max_threads = self.config.get("max_threads", 8)
+		self.timeout = self.config.get("download_timeout", 180)
+		self.new_dir = self.config.get("new_dir_for_per_pid", False)
+		self.unique = self.config.get("unique", False)
+		self.pid_list = []
+
+		self.pixiv = Pixiv(args.account, args.password)
+		if self.unique:
+			self.pid_list = self.read_unique_date()
+			self.pixiv.use_pid_set(True, self.pid_list)
+
 	def set_filter(self, filter_func):
 		self.filter_func = filter_func
+
+	def read_unique_date(self):
+		fp = open("unique.txt", "r", encoding='utf-8')
+		pid_list = json.load(fp)
+		fp.close()
+		return pid_list
+
+	def write_unique_data(self, pid_list):
+		fp = open("unique.txt", "a", encoding='utf-8')
+		json.dump(pid_list)
+		fp.close()
 
 	def run(self):
 		if self.args.mode == "today":
@@ -40,26 +62,20 @@ class PixivRankSpider:
 		pass
 
 	def download_today(self):
-		max_retry = self.config.get("max_retry", 5)
-		max_threads = self.config.get("max_threads", 8)
-		timeout = self.config.get("download_timeout", 180)
-		new_dir = self.config.get("new_dir_for_per_pid", False)
-
 		rank_list = self.pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
 		headers = self.pixiv.get_headers()
 		date = datetime.date.today()
 
 		path = os.path.join(self.save_path, str(self.date2number(date)))
 		self.save_rank_data(path, date, rank_list)
-		downloader = Downloader(path, headers, max_threads, timeout, max_retry, new_dir)
+		downloader = Downloader(path, headers, self.max_threads, self.timeout, self.max_retry, self.new_dir)
 		downloader.download(rank_list)
 
-	def download(self, date1, date2=None):
-		max_retry = self.config.get("max_retry", 5)
-		max_threads = self.config.get("max_threads", 8)
-		timeout = self.config.get("download_timeout", 180)
-		new_dir = self.config.get("new_dir_for_per_pid", False)
+		if self.unique:
+			self.pid_list.extend(downloader.complete)
+			self.write_unique_data(self.pid_list)
 
+	def download(self, date1, date2=None):
 		date = date1
 		date2 = date2 if date2 else date1
 		while (date2 - date).days >= 0:
@@ -69,8 +85,12 @@ class PixivRankSpider:
 
 			path = os.path.join(self.save_path, str(d))
 			self.save_rank_data(path, date, rank_list)
-			downloader = Downloader(path, headers, max_threads, timeout, max_retry, new_dir)
+			downloader = Downloader(path, headers, self.max_threads, self.timeout, self.max_retry, self.new_dir)
 			downloader.download(rank_list)
+
+			if self.unique:
+				self.pid_list.extend(downloader.complete)
+				self.write_unique_data(self.pid_list)
 
 			date += datetime.timedelta(days=1)
 

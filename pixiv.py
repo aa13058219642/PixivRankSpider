@@ -13,6 +13,12 @@ class Pixiv(object):
 		self.headers = {"user-agent": UserAgent().random}
 		self.session = requests.session()
 		self._login(account, password)
+		self.unique = False
+		self.pid_set = None
+
+	def use_pid_set(self, unique, pid_set=None):
+		self.unique = unique
+		self.pid_set = pid_set
 
 	def _login(self, account, password):
 		print("正在登陆")
@@ -66,14 +72,23 @@ class Pixiv(object):
 				return []
 
 			target = self._filter_data(illust_list["contents"], filter_func)
-			rank_list.extend(target)
+			if self.unique:
+				_target = []
+				for item in target:
+					pid = item["illust_id"]
+					if  pid not in self.pid_set:
+						_target.append(pid)
+						rank_list.append(pid)
+			else:
+				rank_list.extend(target)
 
 			if illust_list["next"]:
 				page += 1
 			else:
 				break
 
-		return rank_list[:count]
+		rank_list = rank_list[:count]
+		return rank_list
 
 	def get_today_rank(self, top=100, r18=False, filter_func=None):
 		"""

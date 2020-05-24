@@ -15,10 +15,6 @@ def load_config():
 
 if __name__ == "__main__":
 	config = load_config()
-	max_retry = config.get("max_retry", 5)
-	max_threads = config.get("max_threads", 8)
-	timeout = config.get("download_timeout", 180)
-	new_dir = config.get("new_dir_for_per_pid", False)
 
 	epilog = "example:\n"
 	epilog += "python main.py -m today					# 下载今日排行榜\n"
@@ -35,6 +31,7 @@ if __name__ == "__main__":
 	parser.add_argument("-p", "--password", type=str, default=config.get("password", ""))
 	parser.add_argument("-c", "--count", type=int, default=config.get("download_count", 2))
 	parser.add_argument("-r18", action="store_true", default=False)
+	parser.add_argument("-unique", action="store_true", default=False)
 
 	args = parser.parse_args()
 	if args.account == "" or args.password == "":
