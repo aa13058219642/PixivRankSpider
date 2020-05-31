@@ -7,122 +7,161 @@ from pixiv import Pixiv
 
 
 class PixivRankSpider:
-	def __init__(self, config, args):
-		self.args = args
-		self.config = config
-		self.save_path = os.path.join(args.save_path, "R18" if args.r18 else "General")
-		self.filter_func = None
+    def __init__(self, config, args):
+        self.args = args
+        self.config = config
+        self.save_path = os.path.join(args.save_path, "R18" if args.r18 else "General")
+        self.filter_func = None
+        self.downloaded_callback = None
 
-		self.max_retry = self.config.get("max_retry", 5)
-		self.max_threads = self.config.get("max_threads", 8)
-		self.timeout = self.config.get("download_timeout", 180)
-		self.new_dir = self.config.get("new_dir_for_per_pid", False)
-		self.unique = self.config.get("unique", False)
-		self.pid_list = []
+        self.download_config = {
+            "max_retry": self.config.get("max_retry", 5),
+            "max_threads": self.config.get("max_threads", 8),
+            "timeout": self.config.get("download_timeout", 180),
+            "new_dir": self.config.get("new_dir_for_per_pid", False)
+        }
 
-		self.pixiv = Pixiv(args.account, args.password)
-		if self.unique:
-			self.pid_list = self.read_unique_date()
-			self.pixiv.use_pid_set(True, self.pid_list)
+        self.unique = self.config.get("unique", False)
+        self.spider_data = {
+            "dig_date": 20180101,
+            "pid_list": []
+        }
 
-	def set_filter(self, filter_func):
-		self.filter_func = filter_func
+        self.read_spider_date()
+        self.pixiv = Pixiv(args.account, args.password)
+        if self.unique:
+            self.pixiv.use_pid_set(True, self.spider_data["pid_list"])
 
-	def read_unique_date(self):
-		fp = open("unique.txt", "r", encoding='utf-8')
-		pid_list = json.load(fp)
-		fp.close()
-		return pid_list
+    def set_filter(self, filter_func):
+        self.filter_func = filter_func
 
-	def write_unique_data(self, pid_list):
-		fp = open("unique.txt", "a", encoding='utf-8')
-		json.dump(pid_list)
-		fp.close()
+    def set_downloaded_callback(self, callback_func):
+        self.downloaded_callback = callback_func
 
-	def run(self):
-		if self.args.mode == "today":
-			self.download_today()
-		elif self.args.mode == "yesterday":
-			self.download(datetime.date.today() - datetime.timedelta(days=1))
-		else:
-			date = self.number2date(self.args.date)
-			if not date:
-				print("日期格式有误")
-				return
-			if self.args.mode == "date":
-				self.download(date)
-			elif self.args.mode == "d2t":
-				self.download(date, datetime.date.today())
-			elif self.args.mode == "d2d":
-				date2 = self.number2date(self.args.date2)
-				if not date2:
-					print("日期格式有误")
-					return
-				self.download(date, date2)
-		pass
+    def read_spider_date(self):
+        if not os.path.exists("spider_data.json"):
+            return
 
-	def download_today(self):
-		rank_list = self.pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
-		headers = self.pixiv.get_headers()
-		date = datetime.date.today()
+        try:
+            fp = open("spider_data.json", "r", encoding='utf-8')
+            self.spider_data = json.load(fp)
+            fp.close()
+        except Exception:
+            pass
 
-		path = os.path.join(self.save_path, str(self.date2number(date)))
-		self.save_rank_data(path, date, rank_list)
-		downloader = Downloader(path, headers, self.max_threads, self.timeout, self.max_retry, self.new_dir)
-		downloader.download(rank_list)
+    def write_spider_data(self):
+        fp = open("spider_data.json", "w", encoding='utf-8')
+        json.dump(self.spider_data, fp, indent=4)
+        fp.close()
 
-		if self.unique:
-			self.pid_list.extend(downloader.complete)
-			self.write_unique_data(self.pid_list)
+    def run(self):
+        if self.args.mode == "today":
+            self.download_today()
+            return
+        elif self.args.mode == "yesterday":
+            self.download(datetime.date.today() - datetime.timedelta(days=1))
+            return
 
-	def download(self, date1, date2=None):
-		date = date1
-		date2 = date2 if date2 else date1
-		while (date2 - date).days >= 0:
-			d = self.date2number(date)
-			rank_list = self.pixiv.get_date_rank(d, top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
-			headers = self.pixiv.get_headers()
+        date = self.number2date(self.args.date)
+        if not date:
+            return
 
-			path = os.path.join(self.save_path, str(d))
-			self.save_rank_data(path, date, rank_list)
-			downloader = Downloader(path, headers, self.max_threads, self.timeout, self.max_retry, self.new_dir)
-			downloader.download(rank_list)
+        if self.args.mode == "date":
+            self.download(date)
 
-			if self.unique:
-				self.pid_list.extend(downloader.complete)
-				self.write_unique_data(self.pid_list)
+        if self.args.dig:
+            dig_date = self.number2date(self.spider_data.get("dig_date", 20180101))
+            if self.args.mode == "d2t":
+                date2 = datetime.date.today()
+            elif self.args.mode == "d2d":
+                date2 = self.number2date(self.args.date2)
+            else:
+                date2 = datetime.date.today()
 
-			date += datetime.timedelta(days=1)
+            if not date2 or not dig_date:
+                return
 
-	def save_rank_data(self, save_path, date, rank_list):
-		if not os.path.isdir(save_path):
-			os.makedirs(save_path)
+            if (dig_date - date).days < 0:
+                dig_date = date
 
-		file_name = "_rank_%s.json" % str(date)
-		file_path = os.path.join(save_path, file_name)
-		data = {
-			"date": str(date),
-			"total": len(rank_list),
-			"content": rank_list
-		}
+            self.dig_date = dig_date
+            self.download(dig_date, date2)
+        else:
+            if self.args.mode == "d2t":
+                self.download(date, datetime.date.today())
+            elif self.args.mode == "d2d":
+                date2 = self.number2date(self.args.date2)
+                if not date2:
+                    return
+                self.download(date, date2)
+        pass
 
-		fp = open(file_path, "w", encoding='utf-8')
-		json.dump(data, fp, indent=4, ensure_ascii=False)
-		fp.close()
+    def download_today(self):
+        rank_list = self.pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
+        headers = self.pixiv.get_headers()
+        date = datetime.date.today()
 
-	def number2date(self, number):
-		try:
-			if number == 0:
-				date = datetime.date.today()
-			else:
-				y = int(number / 10000)
-				m = int((number - y * 10000) / 100)
-				d = int(number % 100)
-				date = datetime.date(y, m, d)
-		except Exception:
-			return None
+        path = os.path.join(self.save_path, str(self.date2number(date)))
+        self.save_rank_data(path, date, rank_list)
+        downloader = Downloader(path, headers, self.download_config, self.downloaded_callback)
+        downloader.download(rank_list)
 
-		return date
+        if self.unique:
+            self.spider_data["pid_list"].extend(downloader.complete)
+            self.write_spider_data()
 
-	def date2number(self, date):
-		return date.year * 10000 + date.month * 100 + date.day
+    def download(self, date1, date2=None):
+        date = date1
+        date2 = date2 if date2 else date1
+        while (date2 - date).days >= 0:
+            d = self.date2number(date)
+            rank_list = self.pixiv.get_date_rank(d, self.args.count, self.args.r18, self.filter_func)
+            headers = self.pixiv.get_headers()
+
+            path = os.path.join(self.save_path, str(d))
+            self.save_rank_data(path, date, rank_list)
+            downloader = Downloader(path, headers, self.download_config, self.downloaded_callback)
+            downloader.download(rank_list)
+
+            if self.unique:
+                self.spider_data["pid_list"].extend(downloader.complete)
+            if self.args.dig:
+                self.spider_data["dig_date"] = d
+            if self.unique or self.args.dig:
+                self.write_spider_data()
+
+            date += datetime.timedelta(days=1)
+
+    def save_rank_data(self, save_path, date, rank_list):
+        if not os.path.isdir(save_path):
+            os.makedirs(save_path)
+
+        file_name = "_rank_%s.json" % str(date)
+        file_path = os.path.join(save_path, file_name)
+        data = {
+            "date": str(date),
+            "total": len(rank_list),
+            "content": rank_list
+        }
+
+        fp = open(file_path, "w", encoding='utf-8')
+        json.dump(data, fp, indent=4, ensure_ascii=False)
+        fp.close()
+
+    def number2date(self, number):
+        try:
+            if number == 0:
+                date = datetime.date.today()
+            else:
+                y = int(number / 10000)
+                m = int((number - y * 10000) / 100)
+                d = int(number % 100)
+                date = datetime.date(y, m, d)
+        except Exception:
+            print("日期格式有误:", number)
+            return None
+
+        return date
+
+    def date2number(self, date):
+        return date.year * 10000 + date.month * 100 + date.day
