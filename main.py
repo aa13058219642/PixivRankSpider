@@ -42,32 +42,33 @@ if __name__ == "__main__":
 
     spider = PixivRankSpider(config, args)
 
-    # use filter
-    def filter_func(illust_data):
-        """
-        注意:
-            如果pid是合集，width 和 height 只对合集的第一张图有用
-        """
+    # # use filter
+    # def filter_func(illust_data):
+    #     """
+    #     注意:
+    #         如果pid是合集，width 和 height 只对合集的第一张图有用
+    #     """
+    #
+    #     pid = illust_data["illust_id"]
+    #     if illust_data['width'] < 1920 or illust_data['height'] < 1080:
+    #         return False
+    #     if illust_data['width'] < illust_data['height']:
+    #         return False
+    #     return True
+    #
+    # def download_callback(file_path):
+    #     try:
+    #         img = imageio.imread(file_path)
+    #         h = img.shape[0]
+    #         w = img.shape[1]
+    #     except Exception:
+    #         os.remove(file_path)
+    #
+    #     if w < 1920 or h < 1080 or w < h:
+    #         os.remove(file_path)
+    #
+    # spider.set_filter(filter_func)
+    # spider.set_downloaded_callback(download_callback)
 
-        pid = illust_data["illust_id"]
-        if illust_data['width'] < 1920 or illust_data['height'] < 1080:
-            return False
-        if illust_data['width'] < illust_data['height']:
-            return False
-        return True
-
-    def download_callback(file_path):
-        try:
-            img = imageio.imread(file_path)
-            h = img.shape[0]
-            w = img.shape[1]
-        except Exception:
-            os.remove(file_path)
-
-        if w < 1920 or h < 1080 or w < h:
-            os.remove(file_path)
-
-    spider.set_filter(filter_func)
-    spider.set_downloaded_callback(download_callback)
     spider.run()
     print("done")

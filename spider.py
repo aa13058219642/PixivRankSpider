@@ -21,16 +21,15 @@ class PixivRankSpider:
             "new_dir": self.config.get("new_dir_for_per_pid", False)
         }
 
-        self.unique = self.config.get("unique", False)
         self.spider_data = {
             "dig_date": 20180101,
             "pid_list": []
         }
 
         self.read_spider_date()
-        self.pixiv = Pixiv(args.account, args.password)
-        if self.unique:
-            self.pixiv.use_pid_set(True, self.spider_data["pid_list"])
+        self._pixiv = Pixiv(args.account, args.password)
+        if self.args.unique:
+            self._pixiv.use_pid_set(True, self.spider_data["pid_list"])
 
     def set_filter(self, filter_func):
         self.filter_func = filter_func
@@ -70,7 +69,7 @@ class PixivRankSpider:
             self.download(date)
 
         if self.args.dig:
-            dig_date = self.number2date(self.spider_data.get("dig_date", 20180101))
+            dig_date = self.number2date(1 + self.spider_data.get("dig_date", 20180100))
             if self.args.mode == "d2t":
                 date2 = datetime.date.today()
             elif self.args.mode == "d2d":
@@ -97,8 +96,8 @@ class PixivRankSpider:
         pass
 
     def download_today(self):
-        rank_list = self.pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
-        headers = self.pixiv.get_headers()
+        rank_list = self._pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
+        headers = self._pixiv.get_headers()
         date = datetime.date.today()
 
         path = os.path.join(self.save_path, str(self.date2number(date)))
@@ -106,7 +105,7 @@ class PixivRankSpider:
         downloader = Downloader(path, headers, self.download_config, self.downloaded_callback)
         downloader.download(rank_list)
 
-        if self.unique:
+        if self.args.unique:
             self.spider_data["pid_list"].extend(downloader.complete)
             self.write_spider_data()
 
@@ -115,19 +114,19 @@ class PixivRankSpider:
         date2 = date2 if date2 else date1
         while (date2 - date).days >= 0:
             d = self.date2number(date)
-            rank_list = self.pixiv.get_date_rank(d, self.args.count, self.args.r18, self.filter_func)
-            headers = self.pixiv.get_headers()
+            rank_list = self._pixiv.get_date_rank(d, top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
+            headers = self._pixiv.get_headers()
 
             path = os.path.join(self.save_path, str(d))
             self.save_rank_data(path, date, rank_list)
             downloader = Downloader(path, headers, self.download_config, self.downloaded_callback)
             downloader.download(rank_list)
 
-            if self.unique:
+            if self.args.unique:
                 self.spider_data["pid_list"].extend(downloader.complete)
             if self.args.dig:
                 self.spider_data["dig_date"] = d
-            if self.unique or self.args.dig:
+            if self.args.unique or self.args.dig:
                 self.write_spider_data()
 
             date += datetime.timedelta(days=1)

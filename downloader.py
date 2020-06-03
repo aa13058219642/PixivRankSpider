@@ -150,20 +150,28 @@ class Downloader(object):
             if img_res.status_code != 200:
                 raise Exception()
         except Exception:
-            if retry < self.max_retry:
-                self.url_queue.put((url, retry + 1))
-            else:
-                print("下载%d失败" % url)
-                self._failure.put(url)
+            self.retry(url, retry)
             return
 
         file_name = os.path.basename(url)
         file_path = os.path.join(dir_path, file_name)
-        with open(file_path, "wb+") as fp:
-            fp.write(img_res.content)
+        try:
+            with open(file_path, "wb+") as fp:
+                fp.write(img_res.content)
 
-        if self.downloaded_callback:
-            self.downloaded_callback(file_path)
+            if self.downloaded_callback:
+                self.downloaded_callback(file_path)
+        except Exception:
+            self.retry(url, retry)
+            return
 
         self._complete.put(url)
         print(file_name, "complete", "(%d/%d)" % (self._complete.qsize(), self.data_size))
+
+    def retry(self, url, count):
+        if count < self.max_retry:
+            self.url_queue.put((url, count + 1))
+        else:
+            print("下载%d失败" % url)
+            self._failure.put(url)
+        return
