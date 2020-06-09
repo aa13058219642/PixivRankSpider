@@ -92,14 +92,19 @@ class Downloader(object):
                 th.join()
             self.th_pool.clear()
 
+        pid_set = set()
         while not self._failure.empty():
             pid = self._failure.get()
             self._write_log("download fail: %d" % pid)
-            self.failure.append(pid)
+            pid_set.add(pid)
+        self.failure = list(pid_set)
 
+        pid_set.clear()
         while not self._complete.empty():
             pid = self._complete.get()
-            self.complete.append(pid)
+            assert isinstance(pid, int)
+            pid_set.add(pid)
+        self.complete = list(pid_set)
 
     def _work_thread(self, work_func, queue):
         while True:
@@ -165,7 +170,7 @@ class Downloader(object):
             self.retry(url, retry)
             return
 
-        self._complete.put(url)
+        self._complete.put(int(pid))
         print(file_name, "complete", "(%d/%d)" % (self._complete.qsize(), self.data_size))
 
     def retry(self, url, count):
