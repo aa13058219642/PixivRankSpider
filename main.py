@@ -3,7 +3,7 @@ import sys
 import json
 import imageio
 import argparse
-from spider import PixivRankSpider
+from Script.spider import PixivRankSpider
 
 
 def load_config():

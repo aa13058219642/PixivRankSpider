@@ -5,7 +5,7 @@ import queue
 import requests
 from threading import Thread
 from fake_useragent import UserAgent
-from GIFDownloader import GIFDownloader
+from .GIFDownloader import GIFDownloader
 
 
 class Downloader(object):

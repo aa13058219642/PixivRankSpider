@@ -2,8 +2,8 @@ import os
 import json
 import datetime
 
-from downloader import Downloader
-from pixiv import Pixiv
+from .downloader import Downloader
+from .pixiv import Pixiv
 
 
 class PixivRankSpider:
@@ -69,7 +69,8 @@ class PixivRankSpider:
             self.download(date)
 
         if self.args.dig:
-            dig_date = self.number2date(1 + self.spider_data.get("dig_date", 20180100))
+            dig_date = self.number2date(self.spider_data.get("dig_date", 20180100))
+            dig_date += datetime.timedelta(days=1)
             if self.args.mode == "d2t":
                 date2 = datetime.date.today()
             elif self.args.mode == "d2d":
@@ -114,8 +115,10 @@ class PixivRankSpider:
         date2 = date2 if date2 else date1
         while (date2 - date).days >= 0:
             d = self.date2number(date)
-            rank_list = self._pixiv.get_date_rank(d, top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
             headers = self._pixiv.get_headers()
+            rank_list = self._pixiv.get_date_rank(d, top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
+            if len(rank_list) == 0:
+                break
 
             path = os.path.join(self.save_path, str(d))
             self.save_rank_data(path, date, rank_list)

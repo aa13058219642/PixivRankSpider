@@ -68,7 +68,6 @@ class Pixiv(object):
 
             if "error" in illust_list:
                 print("拉取数据失败:", illust_list, url)
-                print(illust_list)
                 return []
 
             target = self._filter_data(illust_list["contents"], filter_func)

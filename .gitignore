@@ -2,4 +2,6 @@ __pycache__
 .idea
 *.orig
 
+build
 Download
+spider_data.json
