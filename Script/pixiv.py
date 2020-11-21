@@ -1,6 +1,7 @@
 import bs4
 import json
 import requests
+import traceback
 from fake_useragent import UserAgent
 
 
@@ -12,6 +13,7 @@ class Pixiv(object):
     def __init__(self, account, password):
         self.headers = {"user-agent": UserAgent().random}
         self.session = requests.session()
+        self.initialized = False
         self._login(account, password)
         self.unique = False
         self.pid_set = None
@@ -22,23 +24,30 @@ class Pixiv(object):
 
     def _login(self, account, password):
         print("正在登陆")
-        data = self.session.get(url=self.login_data_url, headers=self.headers, timeout=60).content.decode("utf8")
-        post_key = bs4.BeautifulSoup(data, "lxml").find(attrs={"name": "post_key"})["value"]
-        login_data = {
-            "pixiv_id": account,
-            "password": password,
-            "post_key": post_key,
-            "source": "pc",
-            "ref": "wwwtop_accounts_index",
-            "return_to": "https://www.pixiv.net/",
-        }
-        self.session.post(url=self.login_post_url, data=login_data)
-        cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
-        cookie = ""
-        for k, v in cookies.items():
-            cookie += k + "=" + v + "; "
-        self.headers["cookie"] = cookie[:-2]
+        try:
+            data = self.session.get(url=self.login_data_url, headers=self.headers, timeout=60).content.decode("utf8")
+            post_key = bs4.BeautifulSoup(data, "lxml").find(attrs={"name": "post_key"})["value"]
+            login_data = {
+                "pixiv_id": account,
+                "password": password,
+                "post_key": post_key,
+                "source": "pc",
+                "ref": "wwwtop_accounts_index",
+                "return_to": "https://www.pixiv.net/",
+            }
+            self.session.post(url=self.login_post_url, headers=self.headers, data=login_data)
+            cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
+            cookie = ""
+            for k, v in cookies.items():
+                cookie += k + "=" + v + "; "
+            self.headers["cookie"] = cookie[:-2]
+        except Exception as e:
+            traceback.print_stack()
+            return False
+
+        self.initialized = True
         print("登陆完毕")
+        return True
 
     def get_headers(self):
         return self.headers.copy()
@@ -60,15 +69,18 @@ class Pixiv(object):
         while len(rank_list) < count:
             url = rank_url + "&p=" + str(page)
             try:
-                text = self.session.get(url, timeout=60).text
+                text = self.session.get(url, headers=self.headers, timeout=60).text
                 illust_list = json.loads(text)
+            except json.JSONDecodeError as e:
+                print("拉取数据失败，网页账号可能被ban了：\n", e.args, url)
+                return False, []
             except Exception as e:
                 print("拉取数据失败:", e.args, url)
-                return []
+                return False, []
 
             if "error" in illust_list:
                 print("拉取数据失败:", illust_list, url)
-                return []
+                return True, []
 
             target = self._filter_data(illust_list["contents"], filter_func)
             if self.unique:
@@ -82,7 +94,7 @@ class Pixiv(object):
 
         rank_list = rank_list[:count]
         print("找到符合条件的图片 %d 张" % len(rank_list))
-        return rank_list
+        return True, rank_list
 
     def get_today_rank(self, top=100, r18=False, filter_func=None):
         """

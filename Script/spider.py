@@ -1,6 +1,7 @@
 import os
 import json
 import datetime
+import traceback
 
 from .downloader import Downloader
 from .pixiv import Pixiv
@@ -12,6 +13,7 @@ class PixivRankSpider:
         self.config = config
         self.save_path = os.path.join(args.save_path, "R18" if args.r18 else "General")
         self.filter_func = None
+        self.initialized = False
         self.downloaded_callback = None
 
         self.download_config = {
@@ -30,6 +32,7 @@ class PixivRankSpider:
         self._pixiv = Pixiv(args.account, args.password)
         if self.args.unique:
             self._pixiv.use_pid_set(True, self.spider_data["pid_list"])
+        self.initialized = self._pixiv.initialized
 
     def set_filter(self, filter_func):
         self.filter_func = filter_func
@@ -54,50 +57,54 @@ class PixivRankSpider:
         fp.close()
 
     def run(self):
-        if self.args.mode == "today":
-            self.download_today()
-            return
-        elif self.args.mode == "yesterday":
-            self.download(datetime.date.today() - datetime.timedelta(days=1))
-            return
+        is_success = False
+        try:
+            if self.args.mode == "today":
+                return self.download_today()
+            elif self.args.mode == "yesterday":
+                return self.download(datetime.date.today() - datetime.timedelta(days=1))
 
-        date = self.number2date(self.args.date)
-        if not date:
-            return
+            date = self.number2date(self.args.date)
+            if not date:
+                return False
 
-        if self.args.mode == "date":
-            self.download(date)
+            if self.args.mode == "date":
+                is_success = self.download(date)
 
-        if self.args.dig:
-            dig_date = self.number2date(self.spider_data.get("dig_date", 20180100))
-            dig_date += datetime.timedelta(days=1)
-            if self.args.mode == "d2t":
-                date2 = datetime.date.today()
-            elif self.args.mode == "d2d":
-                date2 = self.number2date(self.args.date2)
+            if self.args.dig:
+                dig_date = self.number2date(self.spider_data.get("dig_date", 20180100))
+                dig_date += datetime.timedelta(days=1)
+                if self.args.mode == "d2t":
+                    date2 = datetime.date.today()
+                elif self.args.mode == "d2d":
+                    date2 = self.number2date(self.args.date2)
+                else:
+                    date2 = datetime.date.today()
+
+                if not date2 or not dig_date:
+                    return False
+
+                if (dig_date - date).days < 0:
+                    dig_date = date
+
+                    self.dig_date = dig_date
+                is_success = self.download(dig_date, date2)
             else:
-                date2 = datetime.date.today()
+                if self.args.mode == "d2t":
+                    is_success = self.download(date, datetime.date.today())
+                elif self.args.mode == "d2d":
+                    date2 = self.number2date(self.args.date2)
+                    if not date2:
+                        return False
+                    is_success = self.download(date, date2)
 
-            if not date2 or not dig_date:
-                return
-
-            if (dig_date - date).days < 0:
-                dig_date = date
-
-            self.dig_date = dig_date
-            self.download(dig_date, date2)
-        else:
-            if self.args.mode == "d2t":
-                self.download(date, datetime.date.today())
-            elif self.args.mode == "d2d":
-                date2 = self.number2date(self.args.date2)
-                if not date2:
-                    return
-                self.download(date, date2)
-        pass
+        except Exception as e:
+            traceback.print_stack()
+            is_success = False
+        return is_success
 
     def download_today(self):
-        rank_list = self._pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
+        is_success, rank_list = self._pixiv.get_today_rank(top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
         headers = self._pixiv.get_headers()
         date = datetime.date.today()
 
@@ -109,14 +116,16 @@ class PixivRankSpider:
         if self.args.unique:
             self.spider_data["pid_list"].extend(downloader.complete)
             self.write_spider_data()
+        return is_success
 
     def download(self, date1, date2=None):
         date = date1
         date2 = date2 if date2 else date1
-        while (date2 - date).days >= 0:
+        is_success = True
+        while is_success and (date2 - date).days >= 0:
             d = self.date2number(date)
             headers = self._pixiv.get_headers()
-            rank_list = self._pixiv.get_date_rank(d, top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
+            is_success, rank_list = self._pixiv.get_date_rank(d, top=self.args.count, r18=self.args.r18, filter_func=self.filter_func)
             if len(rank_list) == 0:
                 break
 
@@ -133,6 +142,7 @@ class PixivRankSpider:
                 self.write_spider_data()
 
             date += datetime.timedelta(days=1)
+        return is_success
 
     def save_rank_data(self, save_path, date, rank_list):
         if not os.path.isdir(save_path):

@@ -41,6 +41,9 @@ if __name__ == "__main__":
         sys.exit(0)
 
     spider = PixivRankSpider(config, args)
+    if not spider.initialized:
+        os.system("pause")
+        sys.exit(-1)
 
     # # use filter
     # def filter_func(illust_data):
@@ -70,5 +73,6 @@ if __name__ == "__main__":
     # spider.set_filter(filter_func)
     # spider.set_downloaded_callback(download_callback)
 
-    spider.run()
+    is_success = spider.run()
+    os.system("pause")
     print("done")
