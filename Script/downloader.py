@@ -177,6 +177,6 @@ class Downloader(object):
         if count < self.max_retry:
             self.url_queue.put((url, count + 1))
         else:
-            print("下载%d失败" % url)
+            print("下载%s失败" % url)
             self._failure.put(url)
         return

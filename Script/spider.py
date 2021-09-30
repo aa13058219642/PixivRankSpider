@@ -29,7 +29,10 @@ class PixivRankSpider:
         }
 
         self.read_spider_date()
-        self._pixiv = Pixiv(args.account, args.password)
+        self._pixiv = Pixiv()
+        if not self._pixiv.update_cookie(args.cookie):
+            self._pixiv.login(args.account, args.password)
+
         if self.args.unique:
             self._pixiv.use_pid_set(True, self.spider_data["pid_list"])
         self.initialized = self._pixiv.initialized

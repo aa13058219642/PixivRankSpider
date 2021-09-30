@@ -28,8 +28,9 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--save-path", default=config.get("save_path", "Download"))
     parser.add_argument("-d", "--date", type=int, default=0, help="like 20200101")
     parser.add_argument("-d2", "--date2", type=int, default=0, help="like 20200101")
-    parser.add_argument("-a", "--account", type=str, default=config.get("account", ""))
-    parser.add_argument("-p", "--password", type=str, default=config.get("password", ""))
+    parser.add_argument("--cookie", type=str, default=config.get("cookie", ""))
+    parser.add_argument("--account", type=str, default=config.get("account", ""))
+    parser.add_argument("--password", type=str, default=config.get("password", ""))
     parser.add_argument("-c", "--count", type=int, default=config.get("download_count", 2))
     parser.add_argument("-r18", action="store_true", default=config.get("r18", False))
     parser.add_argument("-unique", action="store_true", default=config.get("unique", False))
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     # spider.set_filter(filter_func)
     # spider.set_downloaded_callback(download_callback)
 
-    is_success = spider.run()
-    os.system("pause")
-    print("done")
+    if not spider.run():
+        os.system("pause")
+    else:
+        print("done")

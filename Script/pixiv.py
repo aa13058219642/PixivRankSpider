@@ -1,8 +1,10 @@
+import os
 import bs4
 import json
 import requests
+import requests.utils
 import traceback
-from fake_useragent import UserAgent
+from anti_useragent import UserAgent
 
 
 class Pixiv(object):
@@ -10,11 +12,10 @@ class Pixiv(object):
     login_data_url = "https://accounts.pixiv.net/login?lang=zh&source=pc&view_type=page&ref=wwwtop_accounts_index"
     rank_url = "https://www.pixiv.net/ranking.php?format=json&content=illust"
 
-    def __init__(self, account, password):
-        self.headers = {"user-agent": UserAgent().random}
+    def __init__(self):
+        self.headers = {"user-agent": UserAgent(min_version=60, max_version=99).random}
         self.session = requests.session()
         self.initialized = False
-        self._login(account, password)
         self.unique = False
         self.pid_set = None
 
@@ -22,7 +23,30 @@ class Pixiv(object):
         self.unique = unique
         self.pid_set = pid_set
 
-    def _login(self, account, password):
+    def update_cookie(self, cookie=''):
+        if os.path.isfile("cookie"):
+            # 存在cookie文件则覆盖，传进来的cookie
+            with open("cookie", "r", encoding='utf-8') as fp:
+                cookie = fp.read()
+
+        if not cookie:
+            return False
+
+        self.headers["cookie"] = cookie
+        response = self.session.get("https://www.pixiv.net/", headers=self.headers, timeout=60)
+        cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
+        cookie = ""
+        for k, v in cookies.items():
+            cookie += k + "=" + v + "; "
+            if k == "PHPSESSID":
+                with open("cookie", "w", encoding='utf-8') as fp:
+                    fp.write(v)
+                    break
+        self.headers["cookie"] = response.headers.get("set-cookie")
+        self.initialized = True
+        return True
+
+    def login(self, account, password):
         print("正在登陆")
         try:
             data = self.session.get(url=self.login_data_url, headers=self.headers, timeout=60).content.decode("utf8")
@@ -42,7 +66,7 @@ class Pixiv(object):
                 cookie += k + "=" + v + "; "
             self.headers["cookie"] = cookie[:-2]
         except Exception as e:
-            traceback.print_stack()
+            traceback.print_exc()
             return False
 
         self.initialized = True
@@ -69,7 +93,8 @@ class Pixiv(object):
         while len(rank_list) < count:
             url = rank_url + "&p=" + str(page)
             try:
-                text = self.session.get(url, headers=self.headers, timeout=60).text
+                response = self.session.get(url, headers=self.headers, timeout=60)
+                text = response.text
                 illust_list = json.loads(text)
             except json.JSONDecodeError as e:
                 print("拉取数据失败，网页账号可能被ban了：\n", e.args, url)
