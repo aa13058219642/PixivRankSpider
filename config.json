@@ -2,13 +2,14 @@
     "cookie": "",
     "account": "",
     "password": "",
+    "proxy": "http://localhost:1080",
 
     "r18": false,
     "unique": false,
     "new_dir_for_per_pid": false,
     "dig": false,
     "max_threads": 8,
-    "download_count": 100,
+    "download_count": 20,
     "download_timeout": 180,
     "retry": 5,
     "save_path": "Download"

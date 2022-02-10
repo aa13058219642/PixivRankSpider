@@ -11,9 +11,10 @@ class GIFDownloader(object):
     gif_info_url = "https://www.pixiv.net/ajax/illust/{pid}/ugoira_meta"
     referer_url = "https://www.pixiv.net/me"
 
-    def __init__(self, http_headers, save_path, new_dir=False, log=False):
+    def __init__(self, http_headers, save_path, proxy=None, new_dir=False, log=False):
         self.headers = http_headers
         self.save_path = save_path
+        self.proxies = {'http': proxy, 'https': proxy} if proxy else None
         self.new_dir = new_dir
         self.log_flag = log
 
@@ -44,7 +45,7 @@ class GIFDownloader(object):
     def isGIF(self, pid):
         headers = self.headers.copy()
         headers["referer"] = self.referer_url.format(pid=pid)
-        gif_info = json.loads(requests.get(self.gif_info_url.format(pid=pid), headers=headers).text)
+        gif_info = json.loads(requests.get(self.gif_info_url.format(pid=pid), headers=headers, proxies=self.proxies).text)
         return not gif_info["error"]
 
     def download(self, pid):
@@ -55,14 +56,14 @@ class GIFDownloader(object):
             os.mkdir(file_path)
 
         # 获取gif信息，提取zip url
-        gif_info = json.loads(requests.get(self.gif_info_url.format(pid=pid), headers=headers).text)
+        gif_info = json.loads(requests.get(self.gif_info_url.format(pid=pid), headers=headers, proxies=self.proxies).text)
         delay = [item["delay"] for item in gif_info["body"]["frames"]]
         delay = sum(delay) / len(delay)
         zip_url = gif_info["body"]["originalSrc"]
 
         # 下载压缩包
         self.log("开始下载")
-        gif_data = requests.get(zip_url, headers=headers)
+        gif_data = requests.get(zip_url, headers=headers, proxies=self.proxies)
         gif_data = gif_data.content
         zip_path = os.path.join(file_path, "temp.zip")
         with open(zip_path, "wb+") as fp:

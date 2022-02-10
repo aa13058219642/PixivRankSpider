@@ -12,7 +12,7 @@ class Downloader(object):
     referer_url = "https://www.pixiv.net/member_illust.php?mode=medium&illust_id={pid}"
     img_info_url = "https://www.pixiv.net/ajax/illust/{pid}"
 
-    def __init__(self, save_path, pixiv_header, config=None, downloaded_callback=None):
+    def __init__(self, save_path, pixiv_header, proxy=None, config=None, downloaded_callback=None):
         self.th_pool = []
         self.url_queue = queue.Queue()
         self.pid_queue = queue.Queue()
@@ -28,6 +28,7 @@ class Downloader(object):
 
         self.save_path = save_path
         self.downloaded_callback = downloaded_callback
+        self.proxies = {'http': proxy, 'https': proxy} if proxy else None
 
         if config:
             self.set_config(config)
@@ -119,7 +120,7 @@ class Downloader(object):
         info_url = self.img_info_url.format(pid=pid)
 
         try:
-            res = requests.get(info_url, headers=headers, timeout=5)
+            res = requests.get(info_url, headers=headers, proxies=self.proxies, timeout=5)
             js = json.loads(res.text)
         except Exception:
             if retry < self.max_retry:
@@ -151,7 +152,7 @@ class Downloader(object):
         headers = {"user-agent": UserAgent().random}
         headers["referer"] = self.referer_url.format(pid=pid)
         try:
-            img_res = requests.get(url, headers=headers, timeout=self.timeout)
+            img_res = requests.get(url, headers=headers, proxies=self.proxies, timeout=self.timeout)
             if img_res.status_code != 200:
                 raise Exception()
         except Exception:

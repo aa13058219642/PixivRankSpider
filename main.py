@@ -1,8 +1,8 @@
 import os
 import sys
 import json
-import imageio
 import argparse
+from PIL import Image
 from Script.spider import PixivRankSpider
 
 
@@ -31,14 +31,15 @@ if __name__ == "__main__":
     parser.add_argument("--cookie", type=str, default=config.get("cookie", ""))
     parser.add_argument("--account", type=str, default=config.get("account", ""))
     parser.add_argument("--password", type=str, default=config.get("password", ""))
-    parser.add_argument("-c", "--count", type=int, default=config.get("download_count", 2))
+    parser.add_argument("--proxy", type=str, default=config.get("proxy", ""))
+    parser.add_argument("--count", type=int, default=config.get("download_count", 2))
     parser.add_argument("-r18", action="store_true", default=config.get("r18", False))
     parser.add_argument("-unique", action="store_true", default=config.get("unique", False))
     parser.add_argument("-dig", action="store_true", default=config.get("dig", False))
 
     args = parser.parse_args()
     if args.account == "" or args.password == "":
-        print("需要登陆，请添加参数：-a 账号 -p 密码")
+        print("需要登陆，请添加参数：--account 账号 --password 密码")
         sys.exit(0)
 
     spider = PixivRankSpider(config, args)
@@ -62,13 +63,13 @@ if __name__ == "__main__":
     #
     # def download_callback(file_path):
     #     try:
-    #         img = imageio.imread(file_path)
-    #         h = img.shape[0]
-    #         w = img.shape[1]
+    #         img = Image.open(file_path)
+    #         w = img.width
+    #         h = img.height
+    #         img.close()
+    #         if w < 1920 or h < 1080 or w < h:
+    #             os.remove(file_path)
     #     except Exception:
-    #         os.remove(file_path)
-    #
-    #     if w < 1920 or h < 1080 or w < h:
     #         os.remove(file_path)
     #
     # spider.set_filter(filter_func)

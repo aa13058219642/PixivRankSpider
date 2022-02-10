@@ -17,11 +17,25 @@ class Pixiv(object):
         self.session = requests.session()
         self.initialized = False
         self.unique = False
+        self.proxies = False
         self.pid_set = None
 
     def use_pid_set(self, unique, pid_set=None):
         self.unique = unique
         self.pid_set = pid_set
+
+    def set_proxy(self, proxy):
+        print("尝试连接代理：", proxy)
+        self.proxies = {'http': proxy, 'https': proxy}
+        url = 'http://icanhazip.com'
+        try:
+            response = requests.get(url, headers=self.headers, proxies=self.proxies, timeout=10)
+            print("连接代理成功：", response.text)
+            return True
+        except:
+            print("连接代理失败，使用默认网络连接")
+            self.proxies = None
+            return False
 
     def update_cookie(self, cookie=''):
         if os.path.isfile("cookie"):
@@ -32,24 +46,29 @@ class Pixiv(object):
         if not cookie:
             return False
 
-        self.headers["cookie"] = cookie
-        response = self.session.get("https://www.pixiv.net/", headers=self.headers, timeout=60)
-        cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
-        cookie = ""
-        for k, v in cookies.items():
-            cookie += k + "=" + v + "; "
-            if k == "PHPSESSID":
-                with open("cookie", "w", encoding='utf-8') as fp:
-                    fp.write(v)
-                    break
-        self.headers["cookie"] = response.headers.get("set-cookie")
-        self.initialized = True
-        return True
+        print("尝试使用cookie登录...")
+        try:
+            self.headers["cookie"] = cookie
+            response = self.session.get("https://www.pixiv.net/", headers=self.headers, proxies=self.proxies, timeout=10)
+            cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
+            cookie = ""
+            for k, v in cookies.items():
+                cookie += k + "=" + v + "; "
+                if k == "PHPSESSID":
+                    with open("cookie", "w", encoding='utf-8') as fp:
+                        fp.write(v)
+                        break
+            self.headers["cookie"] = response.headers.get("set-cookie")
+            self.initialized = True
+            return True
+        except:
+            print("登陆失败！")
+            return False
 
     def login(self, account, password):
-        print("正在登陆")
+        print("尝试使用账号密码登陆...")
         try:
-            data = self.session.get(url=self.login_data_url, headers=self.headers, timeout=60).content.decode("utf8")
+            data = self.session.get(url=self.login_data_url, headers=self.headers, proxies=self.proxies, timeout=10).content.decode("utf8")
             post_key = bs4.BeautifulSoup(data, "lxml").find(attrs={"name": "post_key"})["value"]
             login_data = {
                 "pixiv_id": account,
@@ -59,13 +78,15 @@ class Pixiv(object):
                 "ref": "wwwtop_accounts_index",
                 "return_to": "https://www.pixiv.net/",
             }
-            self.session.post(url=self.login_post_url, headers=self.headers, data=login_data)
+
+            self.session.post(url=self.login_post_url, headers=self.headers, proxies=self.proxies, data=login_data)
             cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
             cookie = ""
             for k, v in cookies.items():
                 cookie += k + "=" + v + "; "
             self.headers["cookie"] = cookie[:-2]
-        except Exception as e:
+        except:
+            print("登陆失败！")
             traceback.print_exc()
             return False
 
@@ -93,11 +114,12 @@ class Pixiv(object):
         while len(rank_list) < count:
             url = rank_url + "&p=" + str(page)
             try:
-                response = self.session.get(url, headers=self.headers, timeout=60)
+                response = self.session.get(url, headers=self.headers, proxies=self.proxies, timeout=10)
                 text = response.text
                 illust_list = json.loads(text)
             except json.JSONDecodeError as e:
                 print("拉取数据失败，网页账号可能被ban了：\n", e.args, url)
+                print(text)
                 return False, []
             except Exception as e:
                 print("拉取数据失败:", e.args, url)

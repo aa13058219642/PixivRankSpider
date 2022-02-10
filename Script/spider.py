@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import datetime
 import traceback
 
@@ -30,9 +31,11 @@ class PixivRankSpider:
 
         self.read_spider_date()
         self._pixiv = Pixiv()
+        self._pixiv.set_proxy(args.proxy)
         if not self._pixiv.update_cookie(args.cookie):
             self._pixiv.login(args.account, args.password)
 
+        time.sleep(3)
         if self.args.unique:
             self._pixiv.use_pid_set(True, self.spider_data["pid_list"])
         self.initialized = self._pixiv.initialized
@@ -101,8 +104,8 @@ class PixivRankSpider:
                         return False
                     is_success = self.download(date, date2)
 
-        except Exception as e:
-            traceback.print_stack()
+        except:
+            traceback.print_exc()
             is_success = False
         return is_success
 
@@ -134,7 +137,7 @@ class PixivRankSpider:
 
             path = os.path.join(self.save_path, str(d))
             self.save_rank_data(path, date, rank_list)
-            downloader = Downloader(path, headers, self.download_config, self.downloaded_callback)
+            downloader = Downloader(path, headers, self.args.proxy, self.download_config, self.downloaded_callback)
             downloader.download(rank_list)
 
             if self.args.unique:
