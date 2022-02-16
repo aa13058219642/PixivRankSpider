@@ -13,7 +13,7 @@ class Pixiv(object):
     rank_url = "https://www.pixiv.net/ranking.php?format=json&content=illust"
 
     def __init__(self):
-        self.headers = {"user-agent": UserAgent(min_version=60, max_version=99).random}
+        self.headers = {"user-agent": UserAgent(platform='windows',min_version=60, max_version=99).random}
         self.session = requests.session()
         self.initialized = False
         self.unique = False
